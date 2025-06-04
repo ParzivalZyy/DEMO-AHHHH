@@ -1,10 +1,10 @@
 import sqlite3
 import pandas as pd
 import ttkbootstrap as tbs
-from ttkbootstrap.constants import *
+from ttkbootstrap.constants import W, E, N, S
 import tkinter as tk
 from tkinter import messagebox
-from datetime import datetime, timedelta
+from datetime import datetime
 import hashlib
 import os
 
@@ -12,8 +12,8 @@ class HotelManagementApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Система управления гостиницей")
-        self.root.minsize(800, 600)
-        self.conn = sqlite3.connect('hotel.db')
+        self.root.minsize(400, 300)
+        self.conn = sqlite3.connect('hotel.db', detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
         self.cursor = self.conn.cursor()
         self.current_user = None
         self.init_db()
@@ -125,15 +125,20 @@ class HotelManagementApp:
 
     def create_login_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.pack(expand=True)
-        tbs.Label(frame, text="Логин:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        login_frame = tbs.Frame(frame, bootstyle="primary")
+        login_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(login_frame, text="Логин:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.login_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.login_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Пароль:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, pady=5)
+        tbs.Entry(login_frame, textvariable=self.login_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(login_frame, text="Пароль:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, padx=5, pady=5)
         self.password_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.password_var, show="*", bootstyle="primary").grid(row=1, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Войти", command=self.authenticate, bootstyle="primary").grid(row=2, column=0, columnspan=2, pady=10)
+        tbs.Entry(login_frame, textvariable=self.password_var, show="*", bootstyle="primary").grid(row=1, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Войти", command=self.authenticate, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def authenticate(self):
         login = self.login_var.get()
@@ -146,23 +151,16 @@ class HotelManagementApp:
             if user and user[7] == 1:
                 messagebox.showerror("Ошибка", "Вы заблокированы. Обратитесь к администратору.")
                 return
-            messagebox.showerror("Ошибка", "Вы ввели неверный логин или пароль. Пожалуйста, проверьте введенные данные.")
+            messagebox.showerror("Ошибка", "Несуществующий логин или пароль. Пожалуйста, проверьте введенные данные.")
             return
         if user[4] == password:
-            last_login = user[5]
-            if last_login and (datetime.now().date() - datetime.strptime(last_login, '%Y-%m-%d').date()).days > 30:
-                self.cursor.execute("UPDATE staff SET is_blocked = 1 WHERE staffID = ?", (user[0],))
-                self.conn.commit()
-                messagebox.showerror("Ошибка", "Вы заблокированы из-за неактивности. Обратитесь к администратору.")
-                return
-            self.cursor.execute("UPDATE staff SET login_attempts = 0, last_login = ? WHERE staffID = ?",
-                              (datetime.now().date(), user[0]))
+            now = datetime.now().date()
+            self.cursor.execute("UPDATE staff SET login_attempts = 0, last_login = ? WHERE staffID = ?", (now, user[0]))
             self.conn.commit()
             self.current_user = user
             if user[4] == self.hash_password("default"):
                 self.create_change_password_form()
             else:
-                messagebox.showinfo("Успех", "Вы успешно авторизовались")
                 self.create_main_menu()
         else:
             attempts = user[6] + 1
@@ -176,18 +174,23 @@ class HotelManagementApp:
 
     def create_change_password_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
-        tbs.Label(frame, text="Текущий пароль:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        form_frame = tbs.Frame(frame, bootstyle="primary")
+        form_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(form_frame, text="Текущий пароль:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.current_password = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.current_password, show="*", bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Новый пароль:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.current_password, show="*", bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Новый пароль:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, padx=5, pady=5)
         self.new_password = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.new_password, show="*", bootstyle="primary").grid(row=1, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Подтверждение пароля:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.new_password, show="*", bootstyle="primary").grid(row=1, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Подтверждение пароля:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, padx=5, pady=5)
         self.confirm_password = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.confirm_password, show="*", bootstyle="primary").grid(row=2, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Изменить пароль", command=self.change_password, bootstyle="primary").grid(row=3, column=0, columnspan=2, pady=10)
+        tbs.Entry(form_frame, textvariable=self.confirm_password, show="*", bootstyle="primary").grid(row=2, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Изменить пароль", command=self.change_password, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def change_password(self):
         current = self.hash_password(self.current_password.get())
@@ -205,34 +208,42 @@ class HotelManagementApp:
             return
         self.cursor.execute("UPDATE staff SET password = ? WHERE staffID = ?", (self.hash_password(new), self.current_user[0]))
         self.conn.commit()
-        messagebox.showinfo("Успех", "Пароль успешно изменен")
+        messagebox.showinfo("УЛЯЛЯ", "Пароль успешно изменен")
         self.create_main_menu()
 
     def create_main_menu(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=0, column=0, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
         if self.current_user[2] == 'Администратор':
-            tbs.Button(frame, text="Добавить пользователя", command=self.create_add_user_form, bootstyle="primary").grid(row=0, column=0, pady=5)
-            tbs.Button(frame, text="Управление бронированиями", command=self.create_booking_form, bootstyle="primary").grid(row=1, column=0, pady=5)
-            tbs.Button(frame, text="Управление номерами", command=self.create_room_management_form, bootstyle="primary").grid(row=2, column=0, pady=5)
-            tbs.Button(frame, text="График уборки", command=self.create_cleaning_schedule_form, bootstyle="primary").grid(row=3, column=0, pady=5)
-            tbs.Button(frame, text="Отчеты", command=self.create_reports_form, bootstyle="primary").grid(row=4, column=0, pady=5)
+            tbs.Button(button_frame, text="Добавить пользователя", command=self.create_add_user_form, bootstyle="primary").grid(row=0, column=0, pady=5)
+            tbs.Button(button_frame, text="Управление бронированиями", command=self.create_booking_form, bootstyle="primary").grid(row=1, column=0, pady=5)
+            tbs.Button(button_frame, text="Управление номерами", command=self.create_room_management_form, bootstyle="primary").grid(row=2, column=0, pady=5)
+            tbs.Button(button_frame, text="График уборки", command=self.create_cleaning_schedule_form, bootstyle="primary").grid(row=3, column=0, pady=5)
+            tbs.Button(button_frame, text="Отчеты", command=self.create_reports_form, bootstyle="primary").grid(row=4, column=0, pady=5)
 
     def create_add_user_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
-        tbs.Label(frame, text="Имя:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        form_frame = tbs.Frame(frame, bootstyle="primary")
+        form_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(form_frame, text="Имя:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.full_name_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.full_name_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Логин:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.full_name_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Логин:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, padx=5, pady=5)
         self.new_login_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.new_login_var, bootstyle="primary").grid(row=1, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Роль:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.new_login_var, bootstyle="primary").grid(row=1, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Роль:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, padx=5, pady=5)
         self.role_var = tk.StringVar()
-        tbs.Combobox(frame, textvariable=self.role_var, values=['Администратор', 'Руководитель', 'Уборщик'], bootstyle="primary").grid(row=2, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Добавить", command=self.add_user, bootstyle="primary").grid(row=3, column=0, columnspan=2, pady=10)
+        tbs.Combobox(form_frame, textvariable=self.role_var, values=['Администратор', 'Руководитель', 'Уборщик'], bootstyle="primary").grid(row=2, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Добавить", command=self.add_user, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def add_user(self):
         login = self.new_login_var.get()
@@ -243,36 +254,41 @@ class HotelManagementApp:
         self.cursor.execute("INSERT INTO staff (full_name, role, login, password) VALUES (?, ?, ?, ?)",
                           (self.full_name_var.get(), self.role_var.get(), login, self.hash_password("default")))
         self.conn.commit()
-        messagebox.showinfo("Успех", "Пользователь успешно добавлен")
+        messagebox.showinfo("УРАААААААААА", "Пользователь успешно добавлен")
         self.create_main_menu()
 
     def create_booking_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
-        tbs.Label(frame, text="Имя гостя:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        form_frame = tbs.Frame(frame, bootstyle="primary")
+        form_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(form_frame, text="Имя гостя:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.guest_name_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.guest_name_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Номер телефона:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.guest_name_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Номер телефона:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, padx=5, pady=5)
         self.phone_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.phone_var, bootstyle="primary").grid(row=1, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Email:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.phone_var, bootstyle="primary").grid(row=1, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Email:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, padx=5, pady=5)
         self.email_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.email_var, bootstyle="primary").grid(row=2, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Паспорт:", bootstyle="inverse-primary").grid(row=3, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.email_var, bootstyle="primary").grid(row=2, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Паспорт:", bootstyle="inverse-primary").grid(row=3, column=0, sticky=W, padx=5, pady=5)
         self.passport_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.passport_var, bootstyle="primary").grid(row=3, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Номер комнаты:", bootstyle="inverse-primary").grid(row=4, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.passport_var, bootstyle="primary").grid(row=3, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Номер комнаты:", bootstyle="inverse-primary").grid(row=4, column=0, sticky=W, padx=5, pady=5)
         self.room_var = tk.StringVar()
         rooms = self.cursor.execute("SELECT room_number FROM rooms WHERE status = 'Чистый'").fetchall()
-        tbs.Combobox(frame, textvariable=self.room_var, values=[r[0] for r in rooms], bootstyle="primary").grid(row=4, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Дата заезда:", bootstyle="inverse-primary").grid(row=5, column=0, sticky=W, pady=5)
+        tbs.Combobox(form_frame, textvariable=self.room_var, values=[r[0] for r in rooms], bootstyle="primary").grid(row=4, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Дата заезда:", bootstyle="inverse-primary").grid(row=5, column=0, sticky=W, padx=5, pady=5)
         self.check_in_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.check_in_var, bootstyle="primary").grid(row=5, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Дата выезда:", bootstyle="inverse-primary").grid(row=6, column=0, sticky=W, pady=5)
+        tbs.Entry(form_frame, textvariable=self.check_in_var, bootstyle="primary").grid(row=5, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Дата выезда:", bootstyle="inverse-primary").grid(row=6, column=0, sticky=W, padx=5, pady=5)
         self.check_out_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.check_out_var, bootstyle="primary").grid(row=6, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Забронировать", command=self.create_booking, bootstyle="primary").grid(row=7, column=0, columnspan=2, pady=10)
+        tbs.Entry(form_frame, textvariable=self.check_out_var, bootstyle="primary").grid(row=6, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Забронировать", command=self.create_booking, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def create_booking(self):
         guest_id = self.register_guest()
@@ -283,7 +299,7 @@ class HotelManagementApp:
                           (guest_id, room_id, check_in, check_out))
         self.cursor.execute("UPDATE rooms SET status = 'Занят' WHERE roomID = ?", (room_id,))
         self.conn.commit()
-        messagebox.showinfo("Успех", "Бронирование успешно создано")
+        messagebox.showinfo("УФФФФФФ", "Бронирование успешно создано")
         self.create_main_menu()
 
     def register_guest(self):
@@ -295,35 +311,43 @@ class HotelManagementApp:
 
     def create_room_management_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
         tree = tbs.Treeview(frame, columns=('Номер', 'Этаж', 'Статус', 'Цена'), show='headings', bootstyle="primary")
         tree.heading('Номер', text='Номер')
         tree.heading('Этаж', text='Этаж')
         tree.heading('Статус', text='Статус')
         tree.heading('Цена', text='Цена за ночь')
-        tree.grid(row=0, column=0, columnspan=2, sticky=(W, E, N, S))
+        tree.grid(row=0, column=0, columnspan=2, sticky=(W, E, N, S), pady=10)
         rooms = self.cursor.execute("SELECT room_number, floor, status, price_per_night FROM rooms").fetchall()
         for room in rooms:
             tree.insert('', 'end', values=room)
-        tbs.Button(frame, text="Назад", command=self.create_main_menu, bootstyle="primary").grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Назад", command=self.create_main_menu, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def create_cleaning_schedule_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
-        tbs.Label(frame, text="Номер:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        form_frame = tbs.Frame(frame, bootstyle="primary")
+        form_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(form_frame, text="Номер:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.cleaning_room_var = tk.StringVar()
         rooms = self.cursor.execute("SELECT room_number FROM rooms WHERE status IN ('Грязный', 'Назначен к уборке')").fetchall()
-        tbs.Combobox(frame, textvariable=self.cleaning_room_var, values=[r[0] for r in rooms], bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Уборщик:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, pady=5)
+        tbs.Combobox(form_frame, textvariable=self.cleaning_room_var, values=[r[0] for r in rooms], bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Уборщик:", bootstyle="inverse-primary").grid(row=1, column=0, sticky=W, padx=5, pady=5)
         self.staff_var = tk.StringVar()
         staff = self.cursor.execute("SELECT full_name FROM staff WHERE role = 'Уборщик'").fetchall()
-        tbs.Combobox(frame, textvariable=self.staff_var, values=[s[0] for s in staff], bootstyle="primary").grid(row=1, column=1, sticky=(W, E), pady=5)
-        tbs.Label(frame, text="Дата уборки:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, pady=5)
+        tbs.Combobox(form_frame, textvariable=self.staff_var, values=[s[0] for s in staff], bootstyle="primary").grid(row=1, column=1, sticky=(W, E), padx=5, pady=5)
+        tbs.Label(form_frame, text="Дата уборки:", bootstyle="inverse-primary").grid(row=2, column=0, sticky=W, padx=5, pady=5)
         self.cleaning_date_var = tk.StringVar()
-        tbs.Entry(frame, textvariable=self.cleaning_date_var, bootstyle="primary").grid(row=2, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Назначить уборку", command=self.schedule_cleaning, bootstyle="primary").grid(row=3, column=0, columnspan=2, pady=10)
+        tbs.Entry(form_frame, textvariable=self.cleaning_date_var, bootstyle="primary").grid(row=2, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Назначить уборку", command=self.schedule_cleaning, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def schedule_cleaning(self):
         room_id = self.cursor.execute("SELECT roomID FROM rooms WHERE room_number = ?", (self.cleaning_room_var.get(),)).fetchone()[0]
@@ -333,17 +357,22 @@ class HotelManagementApp:
                           (room_id, staff_id, cleaning_date))
         self.cursor.execute("UPDATE rooms SET status = 'Назначен к уборке' WHERE roomID = ?", (room_id,))
         self.conn.commit()
-        messagebox.showinfo("Успех", "Уборка успешно назначена")
+        messagebox.showinfo("ОПАААААААА", "Уборка успешно назначена")
         self.create_main_menu()
 
     def create_reports_form(self):
         self.clear_frame()
-        frame = tbs.Frame(self.root, bootstyle="primary", padding=10)
-        frame.grid(row=0, column=0, sticky=(W, E, N, S))
-        tbs.Label(frame, text="Дата отчета:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, pady=5)
+        frame = tbs.Frame(self.root, bootstyle="primary", padding=20)
+        frame.pack(expand=True, fill='both')
+        form_frame = tbs.Frame(frame, bootstyle="primary")
+        form_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        tbs.Label(form_frame, text="Дата отчета:", bootstyle="inverse-primary").grid(row=0, column=0, sticky=W, padx=5, pady=5)
         self.report_date_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
-        tbs.Entry(frame, textvariable=self.report_date_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), pady=5)
-        tbs.Button(frame, text="Сформировать отчет", command=self.generate_report, bootstyle="primary").grid(row=1, column=0, columnspan=2, pady=10)
+        tbs.Entry(form_frame, textvariable=self.report_date_var, bootstyle="primary").grid(row=0, column=1, sticky=(W, E), padx=5, pady=5)
+        button_frame = tbs.Frame(frame, bootstyle="primary")
+        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)
+        tbs.Button(button_frame, text="Сформировать отчет", command=self.generate_report, bootstyle="primary").grid(row=0, column=0, pady=10)
 
     def generate_report(self):
         report_date = datetime.strptime(self.report_date_var.get(), '%Y-%m-%d').date()
