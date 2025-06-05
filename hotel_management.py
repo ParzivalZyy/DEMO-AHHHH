@@ -166,15 +166,24 @@ class HotelManagementApp:
     def authenticate(self):
         login = self.login_var.get()
         password = self.hash_password(self.password_var.get())
-        self.cursor.execute("SELECT * FROM staff WHERE login = ? AND is_blocked = 0", (login,))
+        self.cursor.execute("SELECT * FROM staff WHERE login = ?", (login,))
         user = self.cursor.fetchone()
         if not user:
-            self.cursor.execute("SELECT * FROM staff WHERE login = ?", (login,))
-            user = self.cursor.fetchone()
-            if user and user[7] == 1:
-                messagebox.showerror("Ошибка", "Вы заблокированы. Обратитесь к администратору.")
-                return
             messagebox.showerror("Ошибка", "Несуществующий логин или пароль. Пожалуйста, проверьте введенные данные.")
+            return
+        if user[2] == 'Администратор':
+            if user[4] == password:
+                now = datetime.now().date()
+                self.cursor.execute("UPDATE staff SET last_login = ? WHERE staffID = ?", (now, user[0]))
+                self.conn.commit()
+                self.current_user = user
+                self.create_main_menu()
+            else:
+                messagebox.showerror("Ошибка", "Вы ввели неверный логин или пароль. Пожалуйста, проверьте введенные данные или обратитесь к админу.")
+            return
+
+        if user[7] == 1:
+            messagebox.showerror("Ошибка", "Вы заблокированы. Обратитесь к администратору.")
             return
         if user[4] == password:
             now = datetime.now().date()
@@ -241,6 +250,7 @@ class HotelManagementApp:
             tbs.Button(button_frame, text="Управление номерами", command=self.create_room_management_form, bootstyle="primary-outline", width=40).pack(pady=15)
             tbs.Button(button_frame, text="График уборки", command=self.create_cleaning_schedule_form, bootstyle="primary-outline", width=40).pack(pady=15)
             tbs.Button(button_frame, text="Отчеты", command=self.create_reports_form, bootstyle="primary-outline", width=40).pack(pady=15)
+            tbs.Button(button_frame, text="Разблокировать пользователей", command=self.create_unblock_users_form, bootstyle="danger-outline", width=40).pack(pady=15)
         elif self.current_user[2] == 'Уборщик':
             tbs.Button(button_frame, text="Управление номерами", command=self.create_room_management_form, bootstyle="primary-outline", width=40).pack(pady=15)
             tbs.Button(button_frame, text="График уборки", command=self.create_cleaning_schedule_form, bootstyle="primary-outline", width=40).pack(pady=15)
@@ -626,6 +636,54 @@ class HotelManagementApp:
         for widget in self.root.winfo_children():
             widget.destroy()
 
+    def create_unblock_users_form(self):
+        content_frame = self.create_base_form(self.create_main_menu)
+        form_frame = tbs.Frame(content_frame, bootstyle="primary")
+        form_frame.pack(expand=True)
+        
+        blocked_users = self.cursor.execute("""
+            SELECT staffID, full_name, login, role 
+            FROM staff 
+            WHERE is_blocked = 1
+        """).fetchall()
+        
+        if not blocked_users:
+            tbs.Label(form_frame, text="Нет заблокированных пользователей", 
+                     bootstyle="inverse-primary").pack(pady=20)
+            return
+            
+        tree = tbs.Treeview(form_frame, columns=('ID', 'Имя', 'Логин', 'Роль'), 
+                           show='headings', bootstyle="primary")
+        tree.heading('ID', text='ID')
+        tree.heading('Имя', text='Имя')
+        tree.heading('Логин', text='Логин')
+        tree.heading('Роль', text='Роль')
+        
+        for user in blocked_users:
+            tree.insert('', 'end', values=user)
+        
+        tree.pack(pady=20, fill='both', expand=True)
+        
+        def unblock_selected():
+            selection = tree.selection()
+            if not selection:
+                messagebox.showerror("Ошибка", "Выберите пользователя для разблокировки")
+                return
+                
+            selected_id = tree.item(selection[0])['values'][0]
+            self.cursor.execute("""
+                UPDATE staff 
+                SET is_blocked = 0, login_attempts = 0 
+                WHERE staffID = ?
+            """, (selected_id,))
+            self.conn.commit()
+            messagebox.showinfo("Успех", "Пользователь разблокирован")
+            self.create_unblock_users_form()  
+            
+        tbs.Button(form_frame, text="Разблокировать выбранного пользователя", 
+                  command=unblock_selected, 
+                  bootstyle="danger-outline").pack(pady=10)
+
     def __del__(self):
         if hasattr(self, 'conn') and self.conn:
             self.conn.close()
@@ -634,3 +692,4 @@ if __name__ == "__main__":
     root = tbs.Window(themename="darkly")
     app = HotelManagementApp(root)
     root.mainloop()
+
